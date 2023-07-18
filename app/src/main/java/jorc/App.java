@@ -27,7 +27,7 @@ import org.objectweb.asm.tree.VarInsnNode;
 
 
 public class App {
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws Exception {
         FileInputStream fi = new FileInputStream("/tmp/HelloWorld.class");
         ClassReader cr = new ClassReader(fi);
 
@@ -51,7 +51,7 @@ public class App {
 
                 int index = 0;
                 if (!isMethodStatic) {
-                    LocalVariableNode thisVar = new LocalVariableNode("this", cn.name, null, first, last, index);
+                    LocalVariableNode thisVar = new LocalVariableNode("this", Type.getObjectType(cn.name).toString(), null, first, last, index);
                     methodNode.localVariables.add(thisVar);
                     index++;
                 }
@@ -83,6 +83,9 @@ public class App {
                             InvokeDynamicInsnNode invokeDynamicInsnNode = ((InvokeDynamicInsnNode)prev);
                             varType = Type.getType(invokeDynamicInsnNode.desc).getReturnType();
                         }
+                        else {
+                            throw new Exception(String.format("Unexpected instruction type %d", prev.getType()));
+                        }
                     }
                     else if (opcode == Opcodes.ISTORE) {
                         varType = Type.INT_TYPE;
@@ -96,11 +99,12 @@ public class App {
                     else if(opcode == Opcodes.LSTORE) {
                         varType = Type.LONG_TYPE;
                     }
+                    else {
+                        throw new Exception(String.format("Unexpected opcode %d", opcode));
+                    }
                     VarInsnNode varIsnNode = ((VarInsnNode)insn);
-                    System.out.println(varIsnNode.var);
                     //new LocalVariableNode("local"+varIsnNode.var, varType.toString(), null, null, null, varIsnNode.var);
                 }
-                System.out.println(Integer.toHexString(insn.getOpcode()));
             }
             */
         }
