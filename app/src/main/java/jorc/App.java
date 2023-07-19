@@ -22,6 +22,7 @@ import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.LocalVariableNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
@@ -42,9 +43,10 @@ public class App {
             }
             Type methodType = Type.getType(methodNode.desc);
             boolean isMethodStatic = (methodNode.access & Opcodes.ACC_STATIC) == Opcodes.ACC_STATIC;
+            LabelNode last = null;
             if (!isMethodStatic || methodType.getArgumentTypes().length != 0) {
                 LabelNode first = new LabelNode();
-                LabelNode last = new LabelNode();
+                last = new LabelNode();
 
                 methodNode.instructions.insert(first);
                 methodNode.instructions.add(last);
@@ -58,12 +60,11 @@ public class App {
                 Type[] argTypes = methodType.getArgumentTypes();
                 for (int i = 0; i < argTypes.length; i++) {
                     Type argType = argTypes[i];
-                    LocalVariableNode thisVar = new LocalVariableNode(String.format("arg%d", i+1), argType.getDescriptor(), null, first, last, index);
-                    methodNode.localVariables.add(thisVar);
+                    LocalVariableNode argVar = new LocalVariableNode(String.format("arg%d", i+1), argType.getDescriptor(), null, first, last, index);
+                    methodNode.localVariables.add(argVar);
                     index += argType.getSize();
                 }
             }
-            /*
             for (AbstractInsnNode insn : methodNode.instructions) {
                 // check if this instruction stores a local var on the stack
                 int opcode = insn.getOpcode();
@@ -77,7 +78,16 @@ public class App {
                         }
                         else if (prev.getType() == AbstractInsnNode.METHOD_INSN) {
                             MethodInsnNode methodInsnNode = ((MethodInsnNode)prev);
-                            varType = Type.getType(methodInsnNode.desc).getReturnType();
+                            if (prev.getOpcode() == Opcodes.INVOKESPECIAL && methodInsnNode.name.equals("<init>")) {
+                                do {
+                                    prev = prev.getPrevious();
+                                } while (prev.getOpcode() != Opcodes.NEW);
+                                TypeInsnNode typeInsnNode = ((TypeInsnNode)prev);
+                                varType = Type.getObjectType(typeInsnNode.desc);
+                            }
+                            else {
+                                varType = Type.getType(methodInsnNode.desc).getReturnType();
+                            }
                         }
                         else if (prev.getType() == AbstractInsnNode.INVOKE_DYNAMIC_INSN) {
                             InvokeDynamicInsnNode invokeDynamicInsnNode = ((InvokeDynamicInsnNode)prev);
@@ -100,13 +110,22 @@ public class App {
                         varType = Type.LONG_TYPE;
                     }
                     else {
-                        throw new Exception(String.format("Unexpected opcode %d", opcode));
+                        System.err.println(String.format("Opcode %d is not STORE instruction, skipping...", opcode));
+                        continue;
                     }
+                    
+                    if (last == null) {
+                        last = new LabelNode();
+                        methodNode.instructions.add(last);
+                    }
+                    LabelNode varStart = new LabelNode();
+                    methodNode.instructions.insert(insn, varStart);
+
                     VarInsnNode varIsnNode = ((VarInsnNode)insn);
-                    //new LocalVariableNode("local"+varIsnNode.var, varType.toString(), null, null, null, varIsnNode.var);
+                    LocalVariableNode localVar = new LocalVariableNode("local"+varIsnNode.var, varType.toString(), null, varStart, last, varIsnNode.var);
+                    methodNode.localVariables.add(localVar);
                 }
             }
-            */
         }
         // No need to recompute max or frames
         // because we aren't actually changing
