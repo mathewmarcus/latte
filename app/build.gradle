@@ -9,6 +9,7 @@
 plugins {
     // Apply the application plugin to add support for building a CLI application in Java.
     id 'application'
+    id 'java'
 }
 
 repositories {
@@ -24,11 +25,23 @@ dependencies {
     implementation 'com.google.guava:guava:31.1-jre'
     implementation 'org.ow2.asm:asm:9.5'
     implementation 'org.ow2.asm:asm-tree:9.5'
+    implementation 'commons-cli:commons-cli:1.5.0'
 }
 
 application {
     // Define the main class for the application.
     mainClass = 'jorc.App'
+}
+
+jar {
+    manifest {
+        attributes "Main-Class": application.mainClass
+    }
+
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = "exclude"
 }
 
 tasks.named('test') {
