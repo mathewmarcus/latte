@@ -3,13 +3,13 @@
  */
 package jorc;
 
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.OutputStream;
+import java.util.List;
+import java.util.Scanner;
+import java.util.ArrayList;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -26,10 +26,43 @@ import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.MissingOptionException;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.HelpFormatter;
 
 public class App {
     public static void main(String[] args) throws Exception {
-        FileInputStream fi = new FileInputStream("/tmp/HelloWorld.class");
+        Options options = new Options();
+        Option inputOption = new Option("i", "input", true, "input class file");
+
+        options.addOption("h", "help", false, "");
+        options.addOption("f", "force", false, "do not prompt before overwriting an existing output file");
+        options.addOption("o", "output", true, "output class file");
+        options.addOption(inputOption);
+
+        HelpFormatter formatter = new HelpFormatter();
+
+        CommandLineParser parser = new DefaultParser();
+        CommandLine cmd = parser.parse(options, args);
+
+        if (cmd.hasOption("h")) {
+            formatter.printHelp("myapp", "Rebuild the local variable tables in a class file", options, "", true);
+            return;
+        }
+        if (!cmd.hasOption(inputOption)) {
+            List<Option> missingOptions = new ArrayList<Option>(1);
+            missingOptions.add(inputOption);
+            throw new MissingOptionException(missingOptions);
+        }
+        String inputFileName = cmd.getOptionValue(inputOption);
+        
+
+
+        FileInputStream fi = new FileInputStream(inputFileName);
         ClassReader cr = new ClassReader(fi);
 
         ClassNode cn = new ClassNode();
@@ -133,7 +166,25 @@ public class App {
         ClassWriter classWriter = new ClassWriter(0);
         cn.accept(classWriter);
  
-        OutputStream dout = new FileOutputStream(new File("/tmp","GoodbyeWorld.class"));
+        String outputFileName;
+        if (!cmd.hasOption("o")) {
+            outputFileName = inputFileName;
+        }
+        else {
+            outputFileName = cmd.getOptionValue("o");
+        }
+
+        File outputFile = new File(outputFileName);
+        if (outputFile.exists() && !cmd.hasOption("f")) {
+            Scanner scanner = new Scanner(System.in);
+            System.err.println(String.format("Overwrite the existing file %s?", outputFileName));
+            if (!scanner.nextBoolean()) {
+                return;
+            }
+
+        }
+
+        OutputStream dout = new FileOutputStream(outputFile);
         dout.write(classWriter.toByteArray());
         dout.flush();
         dout.close();
