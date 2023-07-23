@@ -26,6 +26,14 @@ import org.objectweb.asm.tree.TypeInsnNode;
 import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
+import org.objectweb.asm.tree.analysis.Analyzer;
+import org.objectweb.asm.tree.analysis.BasicInterpreter;
+import org.objectweb.asm.tree.analysis.BasicValue;
+import org.objectweb.asm.tree.analysis.BasicVerifier;
+import org.objectweb.asm.tree.analysis.Frame;
+import org.objectweb.asm.tree.analysis.SimpleVerifier;
+import org.objectweb.asm.tree.analysis.SourceInterpreter;
+import org.objectweb.asm.tree.analysis.SourceValue;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.Option;
@@ -36,6 +44,7 @@ import org.apache.commons.cli.HelpFormatter;
 
 public class App {
     public static void main(String[] args) throws Exception {
+        System.out.println(System.getProperty("java.class.path"));
         Options options = new Options();
         Option inputOption = new Option("i", "input", true, "input class file");
 
@@ -70,6 +79,10 @@ public class App {
         cr.accept(cn, 0);
 
         for (MethodNode methodNode : cn.methods) {
+            Analyzer<BasicValue> analyzer = new Analyzer<>(new ObjectTypeInterpreter());
+            analyzer.analyze(cn.name, methodNode);
+
+            System.out.println(String.format("Examining method %s", methodNode.name));
             if (methodNode.localVariables != null && methodNode.localVariables.size() > 0) {
                 System.err.println(String.format("Method %s already contains local variables, skipping...", methodNode.name));
                 //continue;
@@ -98,7 +111,13 @@ public class App {
                     index += argType.getSize();
                 }
             }
+            int i = 0;
             for (AbstractInsnNode insn : methodNode.instructions) {
+                if (insn.getType() == AbstractInsnNode.LABEL) {
+                    continue;
+                }
+                Frame frame = analyzer.getFrames()[i];
+                i++;
                 // check if this instruction stores a local var on the stack
                 int opcode = insn.getOpcode();
                 if (insn.getType() == AbstractInsnNode.VAR_INSN) {
@@ -127,7 +146,7 @@ public class App {
                             varType = Type.getType(invokeDynamicInsnNode.desc).getReturnType();
                         }
                         else {
-                            throw new Exception(String.format("Unexpected instruction type %d", prev.getType()));
+                            throw new Exception(String.format("Unexpected instruction type %d, opcode %d", prev.getType(), prev.getOpcode()));
                         }
                     }
                     else if (opcode == Opcodes.ISTORE) {
