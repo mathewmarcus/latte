@@ -26,11 +26,16 @@ class ObjectTypeInterpreter extends BasicInterpreter {
     public BasicValue binaryOperation(
         final AbstractInsnNode insn, final BasicValue value1, final BasicValue value2)
         throws AnalyzerException {
-            if (insn.getOpcode() == Opcodes.AALOAD) {
-                return new BasicValue(value1.getType().getElementType());
-            }
-            return super.binaryOperation(insn, value1, value2);
+        if (insn.getOpcode() == Opcodes.AALOAD) {
+            return new BasicValue(value1.getType().getElementType());
         }
+        return super.binaryOperation(insn, value1, value2);
+    }
+
+    @Override
+    public BasicValue merge(final BasicValue value1, final BasicValue value2) {
+      return value1;
+    }
 
 
 }

@@ -83,9 +83,12 @@ public class App {
             analyzer.analyze(cn.name, methodNode);
 
             System.out.println(String.format("Examining method %s", methodNode.name));
+            Frame<BasicValue>[] frames = analyzer.getFrames();
+            AbstractInsnNode[] instructions=  methodNode.instructions.toArray();
+
             if (methodNode.localVariables != null && methodNode.localVariables.size() > 0) {
                 System.err.println(String.format("Method %s already contains local variables, skipping...", methodNode.name));
-                //continue;
+                continue;
             }
             Type methodType = Type.getType(methodNode.desc);
             boolean isMethodStatic = (methodNode.access & Opcodes.ACC_STATIC) == Opcodes.ACC_STATIC;
@@ -111,71 +114,50 @@ public class App {
                     index += argType.getSize();
                 }
             }
-            int i = 0;
-            for (AbstractInsnNode insn : methodNode.instructions) {
-                if (insn.getType() == AbstractInsnNode.LABEL) {
-                    continue;
-                }
-                Frame frame = analyzer.getFrames()[i];
-                i++;
-                // check if this instruction stores a local var on the stack
-                int opcode = insn.getOpcode();
-                if (insn.getType() == AbstractInsnNode.VAR_INSN) {
-                    Type varType;
-                    if (opcode == Opcodes.ASTORE) {
-                        AbstractInsnNode prev = insn.getPrevious();
-                        if (prev.getType() == AbstractInsnNode.LDC_INSN) {
-                            LdcInsnNode ldcInsnNode = ((LdcInsnNode)prev);
-                            varType = Type.getType(ldcInsnNode.cst.getClass());
-                        }
-                        else if (prev.getType() == AbstractInsnNode.METHOD_INSN) {
-                            MethodInsnNode methodInsnNode = ((MethodInsnNode)prev);
-                            if (prev.getOpcode() == Opcodes.INVOKESPECIAL && methodInsnNode.name.equals("<init>")) {
-                                do {
-                                    prev = prev.getPrevious();
-                                } while (prev.getOpcode() != Opcodes.NEW);
-                                TypeInsnNode typeInsnNode = ((TypeInsnNode)prev);
-                                varType = Type.getObjectType(typeInsnNode.desc);
-                            }
-                            else {
-                                varType = Type.getType(methodInsnNode.desc).getReturnType();
-                            }
-                        }
-                        else if (prev.getType() == AbstractInsnNode.INVOKE_DYNAMIC_INSN) {
-                            InvokeDynamicInsnNode invokeDynamicInsnNode = ((InvokeDynamicInsnNode)prev);
-                            varType = Type.getType(invokeDynamicInsnNode.desc).getReturnType();
-                        }
-                        else {
-                            throw new Exception(String.format("Unexpected instruction type %d, opcode %d", prev.getType(), prev.getOpcode()));
-                        }
-                    }
-                    else if (opcode == Opcodes.ISTORE) {
-                        varType = Type.INT_TYPE;
-                    }
-                    else if(opcode == Opcodes.DSTORE) {
-                        varType = Type.DOUBLE_TYPE;
-                    }
-                    else if(opcode == Opcodes.FSTORE) {
-                        varType = Type.FLOAT_TYPE;
-                    }
-                    else if(opcode == Opcodes.LSTORE) {
-                        varType = Type.LONG_TYPE;
-                    }
-                    else {
-                        System.err.println(String.format("Opcode %d is not STORE instruction, skipping...", opcode));
-                        continue;
-                    }
+            for (int i = 0; i < instructions.length; i++) {
+                Frame<BasicValue> frame = frames[i];
+                if (instructions[i].getType() == AbstractInsnNode.VAR_INSN) {
+                    int opcode = instructions[i].getOpcode();
+                    if (
+                        opcode == Opcodes.ASTORE ||
+                        opcode == Opcodes.ISTORE ||
+                        opcode == Opcodes.DSTORE ||
+                        opcode == Opcodes.FSTORE ||
+                        opcode == Opcodes.LSTORE
+                    ) {
+                        VarInsnNode insn = (VarInsnNode)instructions[i];
+                        Type varType = frame.getStack(frame.getStackSize() - 1).getType();
+                        System.out.println(String.format("Local var index %d: %s", insn.var, varType.toString()));
                     
-                    if (last == null) {
-                        last = new LabelNode();
-                        methodNode.instructions.add(last);
-                    }
-                    LabelNode varStart = new LabelNode();
-                    methodNode.instructions.insert(insn, varStart);
+                        if (last == null) {
+                            last = new LabelNode();
+                            methodNode.instructions.add(last);
+                        }
 
-                    VarInsnNode varIsnNode = ((VarInsnNode)insn);
-                    LocalVariableNode localVar = new LocalVariableNode("local"+varIsnNode.var, varType.toString(), null, varStart, last, varIsnNode.var);
-                    methodNode.localVariables.add(localVar);
+                        LocalVariableNode existingVar = null;
+                        for (LocalVariableNode var : methodNode.localVariables) {
+                            if (var.index == insn.var) {
+                                existingVar = var;
+                            }
+                        }
+                        if (existingVar != null) {
+                            if (Type.getType(existingVar.desc).equals(varType)) {
+                                System.out.println("Found existing local var with same type, skipping...");
+                                continue;
+                            }
+                            System.out.println("Found existing local var with different type, redefining...");
+                        }
+
+                        LabelNode varStart = new LabelNode();
+                        methodNode.instructions.insert(insn, varStart);
+
+                        if (existingVar != null) {
+                            existingVar.end = varStart;
+                        }
+    
+                        LocalVariableNode localVar = new LocalVariableNode("local"+insn.var, varType.toString(), null, varStart, last, insn.var);
+                        methodNode.localVariables.add(localVar);
+                    }
                 }
             }
         }
@@ -198,8 +180,10 @@ public class App {
             Scanner scanner = new Scanner(System.in);
             System.err.println(String.format("Overwrite the existing file %s?", outputFileName));
             if (!scanner.nextBoolean()) {
+                scanner.close();
                 return;
             }
+            scanner.close();
 
         }
 
