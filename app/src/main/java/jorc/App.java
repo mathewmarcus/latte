@@ -136,6 +136,10 @@ public class App {
                             methodNode.instructions.add(last);
                         }
 
+                        /*
+                         * This logic prevents duplication of arg (aka. param) vars,
+                         * which are scoped to the entire method
+                         */
                         boolean exists = false;
                         for (LocalVariableNode var : methodNode.localVariables) {
                             if (var.index == insn.var && var.end == last) {
@@ -156,7 +160,10 @@ public class App {
                 }
                 else if (instructions[i].getType() == AbstractInsnNode.LABEL) {
                     for (LocalVariableNode localVar : methodNode.localVariables) {
-                        if (localVar.index >= frame.getLocals() || frame.getLocal(localVar.index).getType() == null) {
+                        if (localVar.end == last &&
+                            (localVar.index >= frame.getLocals() ||
+                             frame.getLocal(localVar.index).getType() == null)
+                            ) {
                             localVar.end = (LabelNode)instructions[i];
                         }
                     }
