@@ -13,6 +13,7 @@ import java.util.ArrayList;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -116,6 +117,7 @@ public class App {
             }
             for (int i = 0; i < instructions.length; i++) {
                 Frame<BasicValue> frame = frames[i];
+                
                 if (instructions[i].getType() == AbstractInsnNode.VAR_INSN) {
                     int opcode = instructions[i].getOpcode();
                     if (
@@ -134,29 +136,29 @@ public class App {
                             methodNode.instructions.add(last);
                         }
 
-                        LocalVariableNode existingVar = null;
+                        boolean exists = false;
                         for (LocalVariableNode var : methodNode.localVariables) {
-                            if (var.index == insn.var) {
-                                existingVar = var;
+                            if (var.index == insn.var && var.end == last) {
+                                exists = true;
                             }
                         }
-                        if (existingVar != null) {
-                            if (Type.getType(existingVar.desc).equals(varType)) {
-                                System.out.println("Found existing local var with same type, skipping...");
-                                continue;
-                            }
-                            System.out.println("Found existing local var with different type, redefining...");
+                        if (exists) {
+                            continue;
                         }
+                        
 
                         LabelNode varStart = new LabelNode();
                         methodNode.instructions.insert(insn, varStart);
-
-                        if (existingVar != null) {
-                            existingVar.end = varStart;
-                        }
     
                         LocalVariableNode localVar = new LocalVariableNode("local"+insn.var, varType.toString(), null, varStart, last, insn.var);
                         methodNode.localVariables.add(localVar);
+                    }
+                }
+                else if (instructions[i].getType() == AbstractInsnNode.LABEL) {
+                    for (LocalVariableNode localVar : methodNode.localVariables) {
+                        if (localVar.index >= frame.getLocals() || frame.getLocal(localVar.index).getType() == null) {
+                            localVar.end = (LabelNode)instructions[i];
+                        }
                     }
                 }
             }
