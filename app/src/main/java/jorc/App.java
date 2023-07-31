@@ -119,10 +119,7 @@ public class App {
                     continue;
                 }
                 Path archiveMember = fs.getPath(entry.getName());
-                Path output = Files.createTempFile(null, ".class");
-                handleClass(archiveMember, output, true);
-                Files.copy(output, archiveMember, StandardCopyOption.REPLACE_EXISTING);
-                Files.delete(output);
+                handleClass(archiveMember, archiveMember, true);
             }
             fs.close();
         }
