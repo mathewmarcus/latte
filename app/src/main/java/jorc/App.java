@@ -6,10 +6,22 @@ package jorc;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.CopyOption;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Scanner;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Enumeration;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -46,12 +58,14 @@ import org.apache.commons.cli.HelpFormatter;
 public class App {
     public static void main(String[] args) throws Exception {
         Options options = new Options();
-        Option inputOption = new Option("i", "input", true, "input file");
+        Option includeOption = new Option("i", "include", true, "list of classes to modify (default: all)");
+        includeOption.setArgs(Option.UNLIMITED_VALUES);
 
         options.addOption("h", "help", false, "");
         options.addOption("f", "force", false, "do not prompt before overwriting an existing output file");
         options.addOption("o", "output", true, "output file");
-        options.addOption(inputOption);
+        options.addOption("j", "is-jar", false, "whether the input file is a JAR");
+        options.addOption(includeOption);
 
         HelpFormatter formatter = new HelpFormatter();
 
@@ -59,19 +73,66 @@ public class App {
         CommandLine cmd = parser.parse(options, args);
 
         if (cmd.hasOption("h")) {
-            formatter.printHelp("myapp", "Rebuild the local variable tables in a class file", options, "", true);
+            formatter.printHelp("jorc INPUT_CLASS_OR_JAR", "Rebuild the local variable tables in a class file", options, "", true);
             return;
         }
-        if (!cmd.hasOption(inputOption)) {
-            List<Option> missingOptions = new ArrayList<Option>(1);
-            missingOptions.add(inputOption);
-            throw new MissingOptionException(missingOptions);
+
+        List<String> cliArgs = cmd.getArgList();
+        if (cliArgs.size() != 1) {
+            throw new MissingOptionException("a single input file argument is required");
         }
-        String inputFileName = cmd.getOptionValue(inputOption);
-        
 
+        Path inputFilePath = Paths.get(cliArgs.get(0));
+        Path outputFilePath;
+        if (cmd.hasOption("o")) {
+            outputFilePath = Paths.get(cmd.getOptionValue("o"));
+        }
+        else {
+            outputFilePath = inputFilePath;
+        }
+        if (cmd.hasOption("j")) {
+            if (outputFilePath.toFile().exists() && !cmd.hasOption("f")) {
+                Scanner scanner = new Scanner(System.in);
+                System.err.println(String.format("Overwrite the existing file %s? (Y/n)", outputFilePath.toString()));
+                if (!scanner.hasNext("Y")) {
+                    scanner.close();
+                    return;
+                }
+                scanner.close();
+            }
+            System.out.println(String.format("Overwriting existing file %s", outputFilePath.toString()));
+            
+            if (outputFilePath != inputFilePath) {
+                Files.copy(inputFilePath, outputFilePath, StandardCopyOption.REPLACE_EXISTING);
+            }
 
-        FileInputStream fi = new FileInputStream(inputFileName);
+            FileSystem fs = FileSystems.newFileSystem(outputFilePath, null);
+            ZipFile zf = new ZipFile(inputFilePath.toFile());
+
+            List<String> classWhitelist = null;
+            if (cmd.hasOption(includeOption)) {
+                classWhitelist = Arrays.asList(cmd.getOptionValues(includeOption));
+            }
+            for (Enumeration<? extends ZipEntry> entries = zf.entries(); entries.hasMoreElements();) {
+                ZipEntry entry = entries.nextElement();
+                if (classWhitelist != null && !classWhitelist.contains(entry.getName().replace(".class", "").replace('/', '.'))) {
+                    continue;
+                }
+                Path archiveMember = fs.getPath(entry.getName());
+                Path output = Files.createTempFile(null, ".class");
+                handleClass(archiveMember, output, true);
+                Files.copy(output, archiveMember, StandardCopyOption.REPLACE_EXISTING);
+                Files.delete(output);
+            }
+            fs.close();
+        }
+        else {
+            handleClass(inputFilePath, outputFilePath, cmd.hasOption("f"));
+        }
+    }
+
+    private static void handleClass(Path input, Path output, boolean forceOverwrite) throws Exception {
+        InputStream fi = Files.newInputStream(input);
         ClassReader cr = new ClassReader(fi);
 
         ClassNode cn = new ClassNode();
@@ -79,7 +140,7 @@ public class App {
         cr.accept(cn, 0);
 
         for (MethodNode methodNode : cn.methods) {
-            Analyzer<BasicValue> analyzer = new Analyzer<>(new ObjectTypeInterpreter());
+            Analyzer<BasicValue> analyzer = new Analyzer<BasicValue>(new ObjectTypeInterpreter());
             analyzer.analyze(cn.name, methodNode);
 
             System.out.println(String.format("Examining method %s", methodNode.name));
@@ -175,27 +236,19 @@ public class App {
         ClassWriter classWriter = new ClassWriter(0);
         cn.accept(classWriter);
  
-        String outputFileName;
-        if (!cmd.hasOption("o")) {
-            outputFileName = inputFileName;
-        }
-        else {
-            outputFileName = cmd.getOptionValue("o");
-        }
-
-        File outputFile = new File(outputFileName);
-        if (outputFile.exists() && !cmd.hasOption("f")) {
+        if (!forceOverwrite && output.toFile().exists()) {
             Scanner scanner = new Scanner(System.in);
-            System.err.println(String.format("Overwrite the existing file %s?", outputFileName));
-            if (!scanner.nextBoolean()) {
+            System.err.println(String.format("Overwrite the existing file %s? (Y/n)", output.toString()));
+            if (!scanner.hasNext("Y")) {
                 scanner.close();
                 return;
             }
+            System.out.println(String.format("Overwriting existing file %s", output.toString()));
             scanner.close();
 
         }
 
-        OutputStream dout = new FileOutputStream(outputFile);
+        OutputStream dout = Files.newOutputStream(output);
         dout.write(classWriter.toByteArray());
         dout.flush();
         dout.close();
