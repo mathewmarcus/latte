@@ -45,13 +45,12 @@ import org.apache.commons.cli.HelpFormatter;
 
 public class App {
     public static void main(String[] args) throws Exception {
-        System.out.println(System.getProperty("java.class.path"));
         Options options = new Options();
-        Option inputOption = new Option("i", "input", true, "input class file");
+        Option inputOption = new Option("i", "input", true, "input file");
 
         options.addOption("h", "help", false, "");
         options.addOption("f", "force", false, "do not prompt before overwriting an existing output file");
-        options.addOption("o", "output", true, "output class file");
+        options.addOption("o", "output", true, "output file");
         options.addOption(inputOption);
 
         HelpFormatter formatter = new HelpFormatter();
