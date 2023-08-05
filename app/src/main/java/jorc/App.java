@@ -40,6 +40,7 @@ import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 import org.objectweb.asm.tree.analysis.Analyzer;
+import org.objectweb.asm.tree.analysis.AnalyzerException;
 import org.objectweb.asm.tree.analysis.BasicInterpreter;
 import org.objectweb.asm.tree.analysis.BasicValue;
 import org.objectweb.asm.tree.analysis.BasicVerifier;
@@ -106,7 +107,7 @@ public class App {
                 Files.copy(inputFilePath, outputFilePath, StandardCopyOption.REPLACE_EXISTING);
             }
 
-            FileSystem fs = FileSystems.newFileSystem(outputFilePath, null);
+            FileSystem fs = FileSystems.newFileSystem(outputFilePath);
             ZipFile zf = new ZipFile(inputFilePath.toFile());
 
             List<String> classWhitelist = null;
@@ -115,6 +116,9 @@ public class App {
             }
             for (Enumeration<? extends ZipEntry> entries = zf.entries(); entries.hasMoreElements();) {
                 ZipEntry entry = entries.nextElement();
+                if (!entry.getName().endsWith(".class")) {
+                    continue;
+                }
                 if (classWhitelist != null && !classWhitelist.contains(entry.getName().replace(".class", "").replace('/', '.'))) {
                     continue;
                 }
@@ -136,16 +140,26 @@ public class App {
         
         cr.accept(cn, 0);
 
+        System.out.println(String.format("Examining class %s", cn.name));
         for (MethodNode methodNode : cn.methods) {
             Analyzer<BasicValue> analyzer = new Analyzer<BasicValue>(new ObjectTypeInterpreter());
-            analyzer.analyze(cn.name, methodNode);
+            try {
+                analyzer.analyze(cn.name, methodNode);
+            }
+            catch (AnalyzerException e) {
+                System.err.println(String.format("\tFailed to examine method %s.%s: %s", cn.name, methodNode.name, e.toString()));
+                continue;
+            }
 
-            System.out.println(String.format("Examining method %s", methodNode.name));
+            System.out.println(String.format("\tExamining method %s", methodNode.name));
             Frame<BasicValue>[] frames = analyzer.getFrames();
             AbstractInsnNode[] instructions=  methodNode.instructions.toArray();
 
-            if (methodNode.localVariables != null && methodNode.localVariables.size() > 0) {
-                System.err.println(String.format("Method %s already contains local variables, skipping...", methodNode.name));
+            if (methodNode.localVariables == null) {
+                methodNode.localVariables = new ArrayList<LocalVariableNode>();
+            }
+            else if (methodNode.localVariables.size() > 0) {
+                System.err.println(String.format("\tMethod %s already contains local variables, skipping...", methodNode.name));
                 continue;
             }
             Type methodType = Type.getType(methodNode.desc);
@@ -186,7 +200,7 @@ public class App {
                     ) {
                         VarInsnNode insn = (VarInsnNode)instructions[i];
                         Type varType = frame.getStack(frame.getStackSize() - 1).getType();
-                        System.out.println(String.format("Local var index %d: %s", insn.var, varType.toString()));
+                        //System.out.println(String.format("Local var index %d: %s", insn.var, varType.toString()));
                     
                         if (last == null) {
                             last = new LabelNode();
