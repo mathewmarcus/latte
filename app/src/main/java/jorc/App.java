@@ -207,14 +207,22 @@ public class App {
                             methodNode.instructions.add(last);
                         }
 
-                        /*
-                         * This logic prevents duplication of arg (aka. param) vars,
-                         * which are scoped to the entire method
-                         */
+
                         boolean exists = false;
+                        LabelNode varStart = new LabelNode();
                         for (LocalVariableNode var : methodNode.localVariables) {
                             if (var.index == insn.var && var.end == last) {
-                                exists = true;
+                                if (var.desc.equals(ObjectTypeInterpreter.NULL_TYPE.toString())) {
+                                    var.desc = varType.toString();
+                                    exists = true;
+                                }
+                                else if (!var.desc.equals(varType.toString())) {
+                                    var.end = varStart;
+                                }
+                                else {
+                                    exists = true;
+                                }
+                                break;
                             }
                         }
                         if (exists) {
@@ -222,7 +230,6 @@ public class App {
                         }
                         
 
-                        LabelNode varStart = new LabelNode();
                         methodNode.instructions.insert(insn, varStart);
     
                         LocalVariableNode localVar = new LocalVariableNode("local"+insn.var, varType.toString(), null, varStart, last, insn.var);
@@ -233,7 +240,8 @@ public class App {
                     for (LocalVariableNode localVar : methodNode.localVariables) {
                         if (localVar.end == last &&
                             (localVar.index >= frame.getLocals() ||
-                             frame.getLocal(localVar.index).getType() == null)
+                             frame.getLocal(localVar.index).getType() == null ||
+                             !frame.getLocal(localVar.index).getType().toString().equals(localVar.desc))
                             ) {
                             localVar.end = (LabelNode)instructions[i];
                         }
