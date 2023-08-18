@@ -15,9 +15,15 @@ class ObjectTypeInterpreter extends BasicInterpreter {
   
     @Override
     public BasicValue newValue(final Type type) {
-        BasicValue value = super.newValue(type);
-        if (value != null && value.equals(BasicValue.REFERENCE_VALUE)) {
-            value = new BasicValue(type);
+        BasicValue value;
+        if (type != null && type.getSort() == Type.BOOLEAN) {
+            value = new BasicValue(Type.BOOLEAN_TYPE);
+        }
+        else {
+            value = super.newValue(type);
+            if (value != null && value.equals(BasicValue.REFERENCE_VALUE)) {
+                value = new BasicValue(type);
+            }
         }
         return value;
     }
