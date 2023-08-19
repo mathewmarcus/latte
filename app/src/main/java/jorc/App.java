@@ -245,8 +245,9 @@ public class App {
                             continue;
                         }
                         
-
-                        methodNode.instructions.insert(insn, varStart);
+                        if (!varStart.equals(next)) {
+                            methodNode.instructions.insert(insn, varStart);
+                        }
     
                         LocalVariableNode localVar = new LocalVariableNode("local"+insn.var, newValue.getType().getDescriptor(), null, varStart, last, insn.var);
                         methodNode.localVariables.add(localVar);
@@ -266,16 +267,18 @@ public class App {
                     FrameNode fn = ((FrameNode)instructions[i]);
                     switch (fn.type) {
                         case Opcodes.F_APPEND:
-                            stackFrameLocals.addAll(fn.local.stream().map(local -> local.getClass().equals(String.class) ? Type.getObjectType((String)local) : Type.getType(local.getClass())).toList());
+                            stackFrameLocals.addAll(fn.local.stream().map(local -> stackMapLocalToType(local)).toList());
                             break;
                         case Opcodes.F_CHOP:
                             stackFrameLocals = stackFrameLocals.subList(0, stackFrameLocals.size() - fn.local.size());
+                            break;
                         case Opcodes.F_FULL:
-                            stackFrameLocals = fn.local.stream().map(local -> local.getClass().equals(String.class) ? Type.getObjectType((String)local) : Type.getType(local.getClass())).toList();
+                            stackFrameLocals = new ArrayList<Type>(fn.local.stream().map(local -> stackMapLocalToType(local)).toList());
                             break;
                     }
                     for (LocalVariableNode localVar : methodNode.localVariables) {
                         if (localVar.end == last && 
+                            localVar.index < stackFrameLocals.size() &&
                             localVar.desc.equals(ObjectTypeInterpreter.NULL_TYPE.getDescriptor()))
                         {
                             localVar.desc = stackFrameLocals.get(localVar.index).getDescriptor();
@@ -307,5 +310,16 @@ public class App {
         dout.write(classWriter.toByteArray());
         dout.flush();
         dout.close();
+    }
+
+    private static Type stackMapLocalToType(Object stackMapLocal) {
+        Type type;
+        if (stackMapLocal.getClass().equals(String.class)) {
+            type = Type.getObjectType((String)stackMapLocal);
+        }
+        else {
+            type = Type.getType(stackMapLocal.getClass());
+        }
+        return type;
     }
 }
