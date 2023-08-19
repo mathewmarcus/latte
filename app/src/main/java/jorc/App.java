@@ -30,6 +30,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FrameNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.LocalVariableNode;
@@ -91,6 +92,9 @@ public class App {
         else {
             outputFilePath = inputFilePath;
         }
+
+        ClassLoader classLoader;
+        TypeVerifier tf = new TypeVerifier();
         if (cmd.hasOption("j")) {
             if (outputFilePath.toFile().exists() && !cmd.hasOption("f")) {
                 Scanner scanner = new Scanner(System.in);
@@ -108,6 +112,8 @@ public class App {
             }
 
             FileSystem fs = FileSystems.newFileSystem(outputFilePath);
+            classLoader = new CustomClassLoader(fs);
+            tf.setClassLoader(classLoader);
             ZipFile zf = new ZipFile(inputFilePath.toFile());
 
             List<String> classWhitelist = null;
@@ -123,16 +129,18 @@ public class App {
                     continue;
                 }
                 Path archiveMember = fs.getPath(entry.getName());
-                handleClass(archiveMember, archiveMember, true);
+                handleClass(archiveMember, archiveMember, true, tf);
             }
             fs.close();
         }
         else {
-            handleClass(inputFilePath, outputFilePath, cmd.hasOption("f"));
+            classLoader = new CustomClassLoader(inputFilePath);
+            tf.setClassLoader(classLoader);
+            handleClass(inputFilePath, outputFilePath, cmd.hasOption("f"), tf);
         }
     }
 
-    private static void handleClass(Path input, Path output, boolean forceOverwrite) throws Exception {
+    private static void handleClass(Path input, Path output, boolean forceOverwrite, TypeVerifier typeVerifier) throws Exception {
         InputStream fi = Files.newInputStream(input);
         ClassReader cr = new ClassReader(fi);
 
@@ -165,6 +173,7 @@ public class App {
             Type methodType = Type.getType(methodNode.desc);
             boolean isMethodStatic = (methodNode.access & Opcodes.ACC_STATIC) == Opcodes.ACC_STATIC;
             LabelNode last = null;
+            List<Type> stackFrameLocals = new ArrayList<Type>();
             if (!isMethodStatic || methodType.getArgumentTypes().length != 0) {
                 LabelNode first = new LabelNode();
                 last = new LabelNode();
@@ -174,13 +183,16 @@ public class App {
 
                 int index = 0;
                 if (!isMethodStatic) {
-                    LocalVariableNode thisVar = new LocalVariableNode("this", Type.getObjectType(cn.name).toString(), null, first, last, index);
+                    Type thisType = Type.getObjectType(cn.name);
+                    stackFrameLocals.add(thisType);
+                    LocalVariableNode thisVar = new LocalVariableNode("this", thisType.toString(), null, first, last, index);
                     methodNode.localVariables.add(thisVar);
                     index++;
                 }
                 Type[] argTypes = methodType.getArgumentTypes();
                 for (int i = 0; i < argTypes.length; i++) {
                     Type argType = argTypes[i];
+                    stackFrameLocals.add(argType);
                     LocalVariableNode argVar = new LocalVariableNode(String.format("arg%d", i+1), argType.getDescriptor(), null, first, last, index);
                     methodNode.localVariables.add(argVar);
                     index += argType.getSize();
@@ -199,7 +211,7 @@ public class App {
                         opcode == Opcodes.LSTORE
                     ) {
                         VarInsnNode insn = (VarInsnNode)instructions[i];
-                        Type varType = frame.getStack(frame.getStackSize() - 1).getType();
+                        BasicValue newValue = frame.getStack(frame.getStackSize() - 1);
                         //System.out.println(String.format("Local var index %d: %s", insn.var, varType.toString()));
                     
                         if (last == null) {
@@ -208,15 +220,19 @@ public class App {
                         }
 
 
+                        AbstractInsnNode next = insn.getNext();
+                        LabelNode varStart;
+                        if (next.getType() == AbstractInsnNode.LABEL) {
+                            varStart = (LabelNode)next;
+                        }
+                        else {
+                            varStart = new LabelNode();
+                        }
                         boolean exists = false;
-                        LabelNode varStart = new LabelNode();
+
                         for (LocalVariableNode var : methodNode.localVariables) {
                             if (var.index == insn.var && var.end == last) {
-                                if (var.desc.equals(ObjectTypeInterpreter.NULL_TYPE.toString())) {
-                                    var.desc = varType.toString();
-                                    exists = true;
-                                }
-                                else if (!var.desc.equals(varType.toString())) {
+                                if (!typeVerifier.isAssignableFrom(var.desc, newValue)) {
                                     var.end = varStart;
                                 }
                                 else {
@@ -232,7 +248,7 @@ public class App {
 
                         methodNode.instructions.insert(insn, varStart);
     
-                        LocalVariableNode localVar = new LocalVariableNode("local"+insn.var, varType.toString(), null, varStart, last, insn.var);
+                        LocalVariableNode localVar = new LocalVariableNode("local"+insn.var, newValue.getType().getDescriptor(), null, varStart, last, insn.var);
                         methodNode.localVariables.add(localVar);
                     }
                 }
@@ -240,12 +256,32 @@ public class App {
                     for (LocalVariableNode localVar : methodNode.localVariables) {
                         if (localVar.end == last &&
                             (localVar.index >= frame.getLocals() ||
-                             frame.getLocal(localVar.index).getType() == null ||
-                             !frame.getLocal(localVar.index).getType().toString().equals(localVar.desc))
+                             frame.getLocal(localVar.index).getType() == null)
                             ) {
                             localVar.end = (LabelNode)instructions[i];
                         }
                     }
+                }
+                else if (instructions[i].getType() == AbstractInsnNode.FRAME) {
+                    FrameNode fn = ((FrameNode)instructions[i]);
+                    switch (fn.type) {
+                        case Opcodes.F_APPEND:
+                            stackFrameLocals.addAll(fn.local.stream().map(local -> local.getClass().equals(String.class) ? Type.getObjectType((String)local) : Type.getType(local.getClass())).toList());
+                            break;
+                        case Opcodes.F_CHOP:
+                            stackFrameLocals = stackFrameLocals.subList(0, stackFrameLocals.size() - fn.local.size());
+                        case Opcodes.F_FULL:
+                            stackFrameLocals = fn.local.stream().map(local -> local.getClass().equals(String.class) ? Type.getObjectType((String)local) : Type.getType(local.getClass())).toList();
+                            break;
+                    }
+                    for (LocalVariableNode localVar : methodNode.localVariables) {
+                        if (localVar.end == last && 
+                            localVar.desc.equals(ObjectTypeInterpreter.NULL_TYPE.getDescriptor()))
+                        {
+                            localVar.desc = stackFrameLocals.get(localVar.index).getDescriptor();
+                        }
+                    }
+
                 }
             }
         }
