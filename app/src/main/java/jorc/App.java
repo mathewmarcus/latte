@@ -67,6 +67,9 @@ public class App {
         options.addOption("f", "force", false, "do not prompt before overwriting an existing output file");
         options.addOption("o", "output", true, "output file");
         options.addOption("j", "is-jar", false, "whether the input file is a JAR");
+        options.addOption("c", "class-path", true,
+            String.format("A %c separated list of directories, JAR archives,", File.pathSeparatorChar) +
+            "and ZIP archives to search for class files.");
         options.addOption(includeOption);
 
         HelpFormatter formatter = new HelpFormatter();
@@ -112,7 +115,7 @@ public class App {
             }
 
             FileSystem fs = FileSystems.newFileSystem(outputFilePath);
-            classLoader = new CustomClassLoader(fs);
+            classLoader = new CustomClassLoader(inputFilePath.toUri().toURL());
             tf.setClassLoader(classLoader);
             ZipFile zf = new ZipFile(inputFilePath.toFile());
 

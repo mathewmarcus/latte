@@ -1,42 +1,52 @@
 package jorc;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.FileSystem;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
+import java.nio.file.Paths;
 
-public class CustomClassLoader extends ClassLoader {
-    private FileSystem jarFile = null;
+public class CustomClassLoader extends URLClassLoader {
     private Path classFileName = null;
 
-    public CustomClassLoader(FileSystem jarFile) {
-        this.jarFile = jarFile;
+    public CustomClassLoader(URL jarFile) {
+        super(new URL[] {jarFile});
     }
 
     public CustomClassLoader(Path classFileName) {
+        super(new URL[0]);
         this.classFileName = classFileName;
     }
 
-    protected Class<?> findClass(String name) throws ClassNotFoundException {
-        Path path;
-        if (this.jarFile != null) {
-            String archiveMemberName = String.format("%s.class", name.replace('.', File.separatorChar));
-            path = this.jarFile.getPath(archiveMemberName);
+    public void setAdditionalClassPath(String classPath) throws IOException {
+        PathMatcher pathMatcher = FileSystems.getDefault().getPathMatcher("*.{jar,JAR}");
+        for (String pathName : classPath.split(File.pathSeparator)) {
+            Path path = Paths.get(pathName);
+            if (path.getFileName().toString().equals("*")) {
+                for (Path jar : Files.find(path, 1, (p, attr) -> attr.isRegularFile() && pathMatcher.matches(p)).toList()) {
+                    this.addURL(jar.toUri().toURL());
+                }
+            }
+            else {
+                this.addURL(path.toUri().toURL());
+            }
         }
-        else {
-            path = this.classFileName;
-        }
+    }
 
-        byte[] classBytes;
-        try {
-            classBytes = Files.readAllBytes(path);
-        } catch (IOException e) {
-            throw new ClassCastException(name);
+    protected Class<?> findClass(String name) throws ClassNotFoundException {
+        if (this.classFileName != null && this.classFileName.endsWith(classFileName)) {
+            byte[] classBytes;
+            try {
+                classBytes = Files.readAllBytes(this.classFileName);
+            } catch (IOException e) {
+                throw new ClassNotFoundException(name);
+            }
+            return defineClass(name, classBytes, 0, classBytes.length);
         }
-        
-        return defineClass(name, classBytes, 0, classBytes.length);
+        return super.findClass(name);
     }
 }
