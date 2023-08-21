@@ -149,7 +149,7 @@ public class App {
 
         ClassNode cn = new ClassNode();
         
-        cr.accept(cn, 0);
+        cr.accept(cn, ClassReader.EXPAND_FRAMES);
 
         System.out.println(String.format("Examining class %s", cn.name));
         for (MethodNode methodNode : cn.methods) {
@@ -268,26 +268,31 @@ public class App {
                 }
                 else if (instructions[i].getType() == AbstractInsnNode.FRAME) {
                     FrameNode fn = ((FrameNode)instructions[i]);
-                    switch (fn.type) {
-                        case Opcodes.F_APPEND:
-                            stackFrameLocals.addAll(fn.local.stream().map(local -> stackMapLocalToType(local)).toList());
-                            break;
-                        case Opcodes.F_CHOP:
-                            stackFrameLocals = stackFrameLocals.subList(0, stackFrameLocals.size() - fn.local.size());
-                            break;
-                        case Opcodes.F_FULL:
-                            stackFrameLocals = new ArrayList<Type>(fn.local.stream().map(local -> stackMapLocalToType(local)).toList());
-                            break;
-                    }
                     for (LocalVariableNode localVar : methodNode.localVariables) {
                         if (localVar.end == last && 
-                            localVar.index < stackFrameLocals.size() &&
                             localVar.desc.equals(ObjectTypeInterpreter.NULL_TYPE.getDescriptor()))
                         {
-                            localVar.desc = stackFrameLocals.get(localVar.index).getDescriptor();
+                            int stackMapLocalIndex = localVar.index;
+                            for (int j = 0; j < fn.local.size(); j++) {
+                                Object stackMapLocal = fn.local.get(j);
+                                if (j == stackMapLocalIndex) {
+                                    localVar.desc = stackMapLocalToType(stackMapLocal).getDescriptor();
+                                    break;
+                                }
+                                if (stackMapLocal instanceof Integer) {
+                                    if (stackMapLocal == Opcodes.LONG || stackMapLocal == Opcodes.DOUBLE) {
+                                        /*
+                                         * This is necessary to account for the fact that long and double
+                                         * vars occupy 2 slots in the local variables table, but only one
+                                         * in the stack map frame locals.
+                                         * https://asm.ow2.io/javadoc/org/objectweb/asm/tree/FrameNode.html#%3Cinit%3E(int,int,java.lang.Object%5B%5D,int,java.lang.Object%5B%5D)
+                                         */
+                                        stackMapLocalIndex--;
+                                    }
+                                }
+                            }
                         }
                     }
-
                 }
             }
         }
