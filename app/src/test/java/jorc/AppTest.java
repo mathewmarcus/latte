@@ -89,49 +89,49 @@ class AppTest {
         assertEquals("Z", local.desc);
 
         local = method.localVariables.get(2);
-        assertEquals("local2", local.name);
+        assertEquals("local1", local.name);
         assertEquals(2, local.index);
         assertEquals(4, local.start.getLabel().getOffset());
         assertEquals(69, local.end.getLabel().getOffset());
         assertEquals("Ljava/io/IOException;", local.desc);
 
         local = method.localVariables.get(3);
-        assertEquals("local5", local.name);
+        assertEquals("local2", local.name);
         assertEquals(5, local.index);
         assertEquals(9, local.start.getLabel().getOffset());
         assertEquals(69, local.end.getLabel().getOffset());
         assertEquals("D", local.desc);
 
         local = method.localVariables.get(4);
-        assertEquals("local7", local.name);
+        assertEquals("local3", local.name);
         assertEquals(7, local.index);
         assertEquals(18, local.start.getLabel().getOffset());
         assertEquals(69, local.end.getLabel().getOffset());
         assertEquals("Ljava/io/IOException;", local.desc);
 
         local = method.localVariables.get(5);
-        assertEquals("local8", local.name);
+        assertEquals("local4", local.name);
         assertEquals(8, local.index);
         assertEquals(27, local.start.getLabel().getOffset());
         assertEquals(42, local.end.getLabel().getOffset());
         assertEquals("Ljava/lang/String;", local.desc);
 
         local = method.localVariables.get(6);
-        assertEquals("local3", local.name);
+        assertEquals("local5", local.name);
         assertEquals(3, local.index);
         assertEquals(31, local.start.getLabel().getOffset());
         assertEquals(42, local.end.getLabel().getOffset());
         assertEquals("J", local.desc);
 
         local = method.localVariables.get(7);
-        assertEquals("local8", local.name);
+        assertEquals("local6", local.name);
         assertEquals(8, local.index);
         assertEquals(46, local.start.getLabel().getOffset());
         assertEquals(58, local.end.getLabel().getOffset());
         assertEquals("Ljava/lang/Exception;", local.desc);
 
         local = method.localVariables.get(8);
-        assertEquals("local8", local.name);
+        assertEquals("local7", local.name);
         assertEquals(8, local.index);
         assertEquals(58, local.start.getLabel().getOffset());
         assertEquals(69, local.end.getLabel().getOffset());
@@ -164,14 +164,14 @@ class AppTest {
         assertEquals("D", local.desc);
 
         local = method.localVariables.get(3);
-        assertEquals("local5", local.name);
+        assertEquals("local1", local.name);
         assertEquals(5, local.index);
         assertEquals(3, local.start.getLabel().getOffset());
         assertEquals(40, local.end.getLabel().getOffset());
         assertEquals("D", local.desc);
 
         local = method.localVariables.get(4);
-        assertEquals("local7", local.name);
+        assertEquals("local2", local.name);
         assertEquals(7, local.index);
         assertEquals(6, local.start.getLabel().getOffset());
         assertEquals(40, local.end.getLabel().getOffset());

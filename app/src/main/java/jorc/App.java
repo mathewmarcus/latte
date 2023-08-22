@@ -207,6 +207,8 @@ public class App {
                     index += argType.getSize();
                 }
             }
+
+            int localVarNum = 1;
             for (int i = 0; i < instructions.length; i++) {
                 Frame<BasicValue> frame = frames[i];
                 
@@ -258,7 +260,7 @@ public class App {
                             methodNode.instructions.insert(insn, varStart);
                         }
     
-                        LocalVariableNode localVar = new LocalVariableNode("local"+insn.var, newValue.getType().getDescriptor(), null, varStart, last, insn.var);
+                        LocalVariableNode localVar = new LocalVariableNode("local"+localVarNum++, newValue.getType().getDescriptor(), null, varStart, last, insn.var);
                         methodNode.localVariables.add(localVar);
                     }
                 }
