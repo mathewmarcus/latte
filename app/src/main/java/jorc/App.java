@@ -96,7 +96,7 @@ public class App {
             outputFilePath = inputFilePath;
         }
 
-        ClassLoader classLoader;
+        CustomClassLoader classLoader;
         TypeVerifier tf = new TypeVerifier();
         if (cmd.hasOption("j")) {
             if (outputFilePath.toFile().exists() && !cmd.hasOption("f")) {
@@ -116,6 +116,9 @@ public class App {
 
             FileSystem fs = FileSystems.newFileSystem(outputFilePath);
             classLoader = new CustomClassLoader(inputFilePath.toUri().toURL());
+            if (cmd.hasOption("c")) {
+                classLoader.setAdditionalClassPath(cmd.getOptionValue("c"));
+            }
             tf.setClassLoader(classLoader);
             ZipFile zf = new ZipFile(inputFilePath.toFile());
 
@@ -138,6 +141,9 @@ public class App {
         }
         else {
             classLoader = new CustomClassLoader(inputFilePath);
+            if (cmd.hasOption("c")) {
+                classLoader.setAdditionalClassPath(cmd.getOptionValue("c"));
+            }
             tf.setClassLoader(classLoader);
             handleClass(inputFilePath, outputFilePath, cmd.hasOption("f"), tf);
         }

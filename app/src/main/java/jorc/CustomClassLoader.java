@@ -23,11 +23,11 @@ public class CustomClassLoader extends URLClassLoader {
     }
 
     public void setAdditionalClassPath(String classPath) throws IOException {
-        PathMatcher pathMatcher = FileSystems.getDefault().getPathMatcher("*.{jar,JAR}");
+        PathMatcher pathMatcher = FileSystems.getDefault().getPathMatcher("glob:*.{jar,JAR}");
         for (String pathName : classPath.split(File.pathSeparator)) {
             Path path = Paths.get(pathName);
             if (path.getFileName().toString().equals("*")) {
-                for (Path jar : Files.find(path, 1, (p, attr) -> attr.isRegularFile() && pathMatcher.matches(p)).toList()) {
+                for (Path jar : Files.find(path.getParent(), 1, (p, attr) -> attr.isRegularFile() && pathMatcher.matches(p.getFileName())).toList()) {
                     this.addURL(jar.toUri().toURL());
                 }
             }
