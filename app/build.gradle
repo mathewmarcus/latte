@@ -31,7 +31,7 @@ dependencies {
 
 application {
     // Define the main class for the application.
-    mainClass = 'jorc.App'
+    mainClass = 'latte.App'
 }
 
 jar {

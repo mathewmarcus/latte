@@ -14,7 +14,7 @@
             "type": "java",
             "name": "App",
             "request": "launch",
-            "mainClass": "jorc.App",
+            "mainClass": "latte.App",
             "projectName": "app",
             "args": "${command:SpecifyProgramArgs}"
         }
