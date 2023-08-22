@@ -17,13 +17,19 @@ public class TypeVerifier extends SimpleVerifier {
 
     public boolean isAssignableFrom(String currentTypeDesc, BasicValue newValue) {
         Type currentType = Type.getType(currentTypeDesc);
-        if (integerTypes.contains(currentType) && integerTypes.contains(newValue.getType())) {
-            return true;
+        if (integerTypes.contains(currentType) || integerTypes.contains(newValue.getType())) {
+            return integerTypes.contains(currentType) && integerTypes.contains(newValue.getType());
         }
         BasicValue currentValue = new BasicValue(currentType);
-        if (currentType.equals(SimpleVerifier.NULL_TYPE)) {
-            return this.isSubTypeOf(currentValue, newValue);
+        try {
+            if (currentType.equals(SimpleVerifier.NULL_TYPE)) {
+                return this.isSubTypeOf(currentValue, newValue);
+            }
+            return this.isSubTypeOf(newValue, currentValue);
         }
-        return this.isSubTypeOf(newValue, currentValue);
+        catch (TypeNotPresentException e) {
+            System.err.println(e.toString());
+            return false;
+        }
     }
 }
