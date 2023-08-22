@@ -149,7 +149,7 @@ public class App {
         }
     }
 
-    private static void handleClass(Path input, Path output, boolean forceOverwrite, TypeVerifier typeVerifier) throws Exception {
+    public static void handleClass(Path input, Path output, boolean forceOverwrite, TypeVerifier typeVerifier) throws Exception {
         InputStream fi = Files.newInputStream(input);
         ClassReader cr = new ClassReader(fi);
 
@@ -282,7 +282,11 @@ public class App {
                             for (int j = 0; j < fn.local.size(); j++) {
                                 Object stackMapLocal = fn.local.get(j);
                                 if (j == stackMapLocalIndex) {
-                                    localVar.desc = stackMapLocalToType(stackMapLocal).getDescriptor();
+                                    /*
+                                     * Since this local var is null, it should be safe
+                                     * to assume that this is always an object (not a primitive)
+                                     */
+                                    localVar.desc = Type.getObjectType((String)stackMapLocal).getDescriptor();
                                     break;
                                 }
                                 if (stackMapLocal instanceof Integer) {
@@ -324,16 +328,5 @@ public class App {
         dout.write(classWriter.toByteArray());
         dout.flush();
         dout.close();
-    }
-
-    private static Type stackMapLocalToType(Object stackMapLocal) {
-        Type type;
-        if (stackMapLocal.getClass().equals(String.class)) {
-            type = Type.getObjectType((String)stackMapLocal);
-        }
-        else {
-            type = Type.getType(stackMapLocal.getClass());
-        }
-        return type;
     }
 }
