@@ -3,8 +3,69 @@
  */
 package jorc;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.LocalVariableNode;
+import org.objectweb.asm.tree.MethodNode;
+
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.FileAttribute;
+
 class AppTest {
+    static String classFile = "HelloWorld.klass";
+    static Path inputClassFilePath;
+    Path outputClassFilePath;
+
+    @BeforeAll
+    static void beforeAll() throws URISyntaxException, IOException {
+        inputClassFilePath = Paths.get(AppTest.class.getClassLoader().getResource(classFile).toURI());
+    }
+
+    @BeforeEach
+    void beforeEach() throws IOException {
+        outputClassFilePath = Files.createTempFile(null, ".class");
+    }
+
+    @AfterEach
+    void afterEach() throws IOException {
+        Files.delete(outputClassFilePath);
+    }
+
+    @Test
+    void testHandleClass() throws IOException {
+        TypeVerifier tf = new TypeVerifier();
+
+        assertDoesNotThrow(() -> App.handleClass(inputClassFilePath, outputClassFilePath, true, tf));
+
+
+        InputStream fi = Files.newInputStream(outputClassFilePath);
+        ClassReader cr = new ClassReader(fi);
+        ClassNode cn = new ClassNode();
+        cr.accept(cn, 0);
+        ClassWriter classWriter = new ClassWriter(0);
+        cn.accept(classWriter);
+        assertEquals(3, cn.methods.size());
+
+        MethodNode method = cn.methods.get(0);
+        assertEquals("<init>", method.name);
+        assertEquals(1, method.localVariables.size());
+        LocalVariableNode local = method.localVariables.get(0);
+        assertEquals("this", local.name);
+        assertEquals(0, local.start.getLabel().getOffset());
+        assertEquals(5, local.end.getLabel().getOffset());
+        assertEquals("LHelloWorld;", local.desc);
+    
+    }
 }
