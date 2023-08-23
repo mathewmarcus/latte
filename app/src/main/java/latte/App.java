@@ -103,7 +103,7 @@ public class App {
                 Files.copy(inputFilePath, outputFilePath, StandardCopyOption.REPLACE_EXISTING);
             }
 
-            FileSystem fs = FileSystems.newFileSystem(outputFilePath);
+            FileSystem fs = FileSystems.newFileSystem(outputFilePath, (ClassLoader)null);
             classLoader = new CustomClassLoader(inputFilePath.toUri().toURL());
             if (cmd.hasOption("c")) {
                 classLoader.setAdditionalClassPath(cmd.getOptionValue("c"));
