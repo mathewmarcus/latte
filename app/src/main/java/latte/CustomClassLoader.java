@@ -27,7 +27,7 @@ public class CustomClassLoader extends URLClassLoader {
         for (String pathName : classPath.split(File.pathSeparator)) {
             Path path = Paths.get(pathName);
             if (path.getFileName().toString().equals("*")) {
-                for (Path jar : Files.find(path.getParent(), 1, (p, attr) -> attr.isRegularFile() && pathMatcher.matches(p.getFileName())).toList()) {
+                for (Path jar : Files.find(path.getParent(), 1, (p, attr) -> attr.isRegularFile() && pathMatcher.matches(p.getFileName())).toArray(Path[]::new)) {
                     this.addURL(jar.toUri().toURL());
                 }
             }
