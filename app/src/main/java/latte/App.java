@@ -67,7 +67,7 @@ public class App {
         CommandLine cmd = parser.parse(options, args);
 
         if (cmd.hasOption("h")) {
-            formatter.printHelp("latte INPUT_CLASS_OR_JAR", "Rebuild the local variable tables in a class file", options, "", true);
+            formatter.printHelp("java -jar latte.jar INPUT_CLASS_OR_JAR", "Rebuild the local variable tables in a class file", options, "", true);
             return;
         }
 
