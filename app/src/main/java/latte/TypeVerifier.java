@@ -1,15 +1,15 @@
 package latte;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.analysis.BasicValue;
 import org.objectweb.asm.tree.analysis.SimpleVerifier;
 
-import com.google.common.collect.ImmutableSet;
-
 public class TypeVerifier extends SimpleVerifier {
-    private final static Set<Type> integerTypes = ImmutableSet.of(Type.BOOLEAN_TYPE, Type.BYTE_TYPE, Type.CHAR_TYPE, Type.INT_TYPE);
+    private final static Set<Type> integerTypes = new HashSet<Type>(Arrays.asList(Type.BOOLEAN_TYPE, Type.BYTE_TYPE, Type.CHAR_TYPE, Type.INT_TYPE));
 
     public TypeVerifier() {
       super(/* latest api = */ ASM9, null, null, null, false);
