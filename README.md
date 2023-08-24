@@ -205,7 +205,7 @@ Rebuild the local variable tables in a class file
 
 ### Positional Arguments
 #### INPUT_CLASS_FILE_OR_JAR
-The target file; either a `.class` file (default) or a `.jar` file (see [`--jar`](#jar))
+The target file; either a `.class` file (default) or a `.jar` file (see [`--jar`](#--jar))
 
 ### Options
 
